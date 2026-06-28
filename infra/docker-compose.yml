@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: north
+      POSTGRES_PASSWORD: north
+      POSTGRES_DB: north
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U north"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ../server
+    environment:
+      DATABASE_URL: postgresql+asyncpg://north:north@db:5432/north
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Когато дойдат фоновите задачи (напр. AI анализи), разкоментирай:
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+
+volumes:
+  pgdata:

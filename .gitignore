@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+server/data/*.db
+app/.dart_tool/
+app/build/
+app/.flutter-plugins*
+**/*.g.dart
+.env

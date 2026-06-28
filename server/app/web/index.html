@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NorthOS</title>
+<style>
+  :root{
+    --bg:#F4F6F4; --ink:#272D2A; --muted:#8B948D; --faint:#A9B1AB;
+    --line:rgba(39,45,42,.08); --field:#FFFFFF; --accent:#5E7D6E;
+    --shadow:0 1px 2px rgba(39,45,42,.04), 0 8px 24px rgba(39,45,42,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#181B19; --ink:#E6EAE7; --muted:#7E867F; --faint:#5A615B;
+      --line:rgba(230,234,231,.10); --field:#212622; --accent:#8FB39F;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);}
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink)}
+  body{font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5;padding:0 22px env(safe-area-inset-bottom)}
+  .wrap{max-width:620px;margin:0 auto;padding:64px 0 120px}
+  header{margin-bottom:30px}
+  .greet{font-size:26px;font-weight:500;letter-spacing:-.01em;margin:0}
+  .sub{color:var(--muted);font-size:15px;margin:6px 0 0}
+  .field{position:sticky;top:14px;z-index:5;background:var(--field);border:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--shadow);padding:4px;margin-bottom:8px;transition:border-color .15s}
+  .field:focus-within{border-color:var(--accent)}
+  textarea{width:100%;border:0;outline:0;resize:none;background:transparent;color:var(--ink);
+    font:inherit;font-size:17px;line-height:1.5;padding:14px;min-height:54px;max-height:40vh}
+  textarea::placeholder{color:var(--faint)}
+  .hint{color:var(--faint);font-size:12.5px;height:16px;margin:0 6px 30px}
+  .hint b{color:var(--muted);font-weight:600}
+  .day{display:flex;align-items:center;gap:12px;margin:26px 2px 12px;color:var(--muted);
+    font-size:12.5px;text-transform:uppercase;letter-spacing:.08em}
+  .day::after{content:"";flex:1;height:1px;background:var(--line)}
+  .item{display:flex;gap:14px;padding:11px 2px;align-items:baseline}
+  .time{flex:0 0 46px;color:var(--faint);font-size:12.5px;font-variant-numeric:tabular-nums;padding-top:2px}
+  .text{flex:1;white-space:pre-wrap;word-break:break-word;font-size:16px}
+  .dot{flex:0 0 7px;width:7px;height:7px;border-radius:50%;margin-top:8px;background:transparent}
+  .item.pending .dot{background:var(--accent)}
+  .item.pending .text{color:var(--muted)}
+  .empty{color:var(--faint);font-size:15px;text-align:center;padding:40px 0;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="greet" id="greet">Здравей.</h1>
+    <p class="sub">Изсипи каквото ти е в главата. После не мисли за него.</p>
+  </header>
+  <div class="field">
+    <textarea id="box" rows="1" autofocus placeholder="Какво ти е наум?" aria-label="Какво ти е наум?"></textarea>
+  </div>
+  <div class="hint"><b>Enter</b> записва · <b>Shift+Enter</b> нов ред</div>
+  <div id="list"></div>
+</div>
+<script>
+const KEY="northos.pending.v1";
+const box=document.getElementById("box"), list=document.getElementById("list");
+(function(){const h=new Date().getHours();
+  document.getElementById("greet").textContent =
+    h<5?"Будна нощ.":h<12?"Добро утро.":h<18?"Добър ден.":"Добра вечер.";})();
+const uuid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2);
+const loadP=()=>{try{return JSON.parse(localStorage.getItem(KEY))||[]}catch(e){return[]}};
+const saveP=p=>localStorage.setItem(KEY,JSON.stringify(p));
+let server=[], pending=loadP();
+function merged(){const m=new Map();
+  for(const x of server) m.set(x.id,{...x,pending:false});
+  for(const x of pending) if(!m.has(x.id)) m.set(x.id,{...x,pending:true});
+  return [...m.values()].sort((a,b)=>b.created_at.localeCompare(a.created_at));}
+function dayLabel(d){const n=new Date(),x=new Date(d),s=(a,b)=>a.toDateString()===b.toDateString();
+  const y=new Date(n);y.setDate(n.getDate()-1);
+  return s(x,n)?"Днес":s(x,y)?"Вчера":x.toLocaleDateString("bg-BG",{day:"numeric",month:"long"});}
+const hhmm=d=>new Date(d).toLocaleTimeString("bg-BG",{hour:"2-digit",minute:"2-digit"});
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+function render(){const items=merged();
+  if(!items.length){list.innerHTML='<div class="empty">Тук е тихо.<br>Първата мисъл върви в полето горе.</div>';return;}
+  let html="",last=null;
+  for(const m of items){const dl=dayLabel(m.created_at);
+    if(dl!==last){html+=`<div class="day">${dl}</div>`;last=dl;}
+    html+=`<div class="item ${m.pending?'pending':''}"><span class="dot"></span>`+
+      `<span class="time">${hhmm(m.created_at)}</span><span class="text">${esc(m.text)}</span></div>`;}
+  list.innerHTML=html;}
+async function refresh(){try{const r=await fetch("/api/memories");
+  if(r.ok){server=await r.json();render();}}catch(e){render();}}
+async function flush(){if(!pending.length)return;const still=[];
+  for(const m of pending){try{const r=await fetch("/api/memories",{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify(m)});
+    if(!r.ok) still.push(m);}catch(e){still.push(m);}}
+  pending=still;saveP(pending);await refresh();}
+async function capture(t){t=t.trim();if(!t)return;
+  const m={id:uuid(),text:t,kind:"note",created_at:new Date().toISOString()};
+  pending.push(m);saveP(pending);render();await flush();}
+box.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();
+  const v=box.value;box.value="";box.style.height="auto";capture(v);}});
+box.addEventListener("input",()=>{box.style.height="auto";box.style.height=box.scrollHeight+"px";});
+window.addEventListener("online",flush);setInterval(flush,10000);refresh();box.focus();
+</script>
+</body>
+</html>
